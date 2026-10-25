@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' blob: data:; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="theme-color" content="#222933">
+<title>Lamplight Reader — Read PDFs and the Bible aloud, offline</title>
+<meta name="description" content="Read PDFs and the Bible aloud. Free, private, and fully offline.">
+<link rel="stylesheet" href="css/lamplightcss.css">
+<link rel="stylesheet" href="css/fonts.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">Lamplight</span>
+      <span class="brand-file" id="fileLabel"></span>
+    </div>
+    <div class="header-actions">
+      <button class="header-btn" id="tocBtn" type="button" hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Contents</span>
+      </button>
+      <button class="header-btn" id="scanBtn" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7a2 2 0 0 1 2-2h2l1-2h6l1 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="13" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        <span>Scan</span>
+      </button>
+      <button class="header-btn" id="bibleBtn" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM12 7v7M9.5 9.5h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Bible</span>
+      </button>
+      <button class="header-btn" id="headerUploadBtn" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l5 5h-3v7h-4V8H7l5-5zM5 19h14v2H5z" fill="currentColor"/></svg>
+        <span>Upload PDF</span>
+      </button>
+      <button class="header-btn" id="fillSignBtn" type="button" disabled title="Open a PDF to fill or sign it">
+        <span>Fill &amp; sign</span>
+      </button>
+      <a class="go-pro" id="tipBtn" href="tip.html"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-4.6-9.3-9.2C1.2 8.6 3 5 6.5 5c2 0 3.6 1.1 5.5 3 1.9-1.9 3.5-3 5.5-3C21 5 22.8 8.6 21.3 11.8 19 16.4 12 21 12 21z" fill="currentColor"/></svg><span>Tip jar</span></a>
+    </div>
+  </header>
+
+  <main id="mainArea">
+    <div id="dropzone">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M12 3l5 5h-3v7h-4V8H7l5-5zM5 19h14v2H5z"/></svg>
+      <h1>Read anything aloud</h1>
+      <p>Drop a PDF here (up to 500 pages), choose a file, or scan a document with your camera. Click any word to start reading from that spot. Everything stays on your computer — nothing is uploaded.</p>
+      <button class="choose-btn" id="dropzoneChooseBtn" type="button">Choose a PDF</button>
+      <div class="dropzone-alt">
+        <button class="scan-secondary-btn" id="dropzoneScanBtn" type="button">Scan a document</button>
+        <button class="scan-secondary-btn" id="dropzoneBibleBtn" type="button">Read the Bible</button>
+      </div>
+    </div>
+    <div id="status-message" hidden></div>
+    <div id="pagesContainer" hidden></div>
+  </main>
+
+  <div id="tocBackdrop" hidden>
+    <div id="tocPanel" role="dialog" aria-label="Table of contents">
+      <div class="toc-header">
+        <h2>Contents</h2>
+        <button id="tocCloseBtn" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div id="tocList"></div>
+    </div>
+  </div>
+
+  <div id="scanBackdrop" class="modal-backdrop" hidden>
+    <div class="scan-modal">
+      <div class="scan-modal-header">
+        <h2>Scan a document</h2>
+        <button id="scanCloseBtn" type="button" aria-label="Close">&times;</button>
+      </div>
+
+      <div id="cameraView" class="scan-view">
+        <div class="camera-stage">
+          <video id="cameraVideo" autoplay playsinline muted></video>
+          <div class="camera-guide" aria-hidden="true"></div>
+        </div>
+        <p class="scan-hint" id="cameraHint">Fill the frame with your document, then tap the shutter. Capture each page, then tap Create PDF.</p>
+        <div class="filter-picker" id="filterPicker">
+          <button type="button" class="filter-btn" data-filter="original">Original</button>
+          <button type="button" class="filter-btn" data-filter="grayscale">Grayscale</button>
+          <button type="button" class="filter-btn active" data-filter="bw">Enhanced</button>
+        </div>
+        <div class="camera-thumbs" id="cameraThumbs"></div>
+        <div class="scan-view-actions">
+          <button id="scanUploadInsteadBtn" type="button" class="scan-secondary-btn">Upload photos</button>
+          <button id="shutterBtn" type="button" class="shutter-btn" aria-label="Capture photo"></button>
+          <button id="scanDoneBtn" type="button" class="scan-primary-btn" disabled>Create PDF</button>
+        </div>
+      </div>
+
+      <div id="cornerAdjustView" class="scan-view" hidden>
+        <div class="corner-stage" id="cornerStage">
+          <img id="cornerImage" alt="Captured page">
+          <svg class="corner-overlay-svg"><polygon id="cornerPolygon" points=""/></svg>
+          <div class="corner-handle" id="handle-0"></div>
+          <div class="corner-handle" id="handle-1"></div>
+          <div class="corner-handle" id="handle-2"></div>
+          <div class="corner-handle" id="handle-3"></div>
+        </div>
+        <p class="scan-hint">Drag the corners to match the edges of your document.</p>
+        <div class="scan-view-actions">
+          <button id="cornerResetBtn" type="button" class="scan-secondary-btn">Reset</button>
+          <button id="cornerRetakeBtn" type="button" class="scan-secondary-btn">Retake</button>
+          <button id="cornerConfirmBtn" type="button" class="scan-primary-btn">Use this page</button>
+        </div>
+      </div>
+
+      <div id="scanProcessingView" class="scan-view" hidden>
+        <div class="scan-spinner" aria-hidden="true"></div>
+        <p id="scanProcessingText">Working…</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="scanResultBanner" class="scan-result-banner" hidden>
+    <span id="scanResultText"></span>
+    <a id="scanDownloadLink" class="scan-primary-btn" download>Download</a>
+    <button id="scanResultDismiss" type="button" class="scan-secondary-btn">Dismiss</button>
+  </div>
+
+  <footer id="controlBar" hidden>
+    <div class="engine-status" id="engineStatus" hidden></div>
+    <div class="progress-text" id="progressText"></div>
+    <div class="controls-row">
+      <div class="transport">
+        <button id="playBtn" type="button" class="primary" aria-label="Play" title="Play">
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+        </button>
+        <button id="pauseBtn" type="button" aria-label="Pause" title="Pause">
+          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/></svg>
+        </button>
+        <button id="stopBtn" type="button" aria-label="Stop" title="Stop">
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" fill="currentColor"/></svg>
+        </button>
+      </div>
+
+      <div class="speed-control">
+        <label for="rateSlider">Speed</label>
+        <input type="range" id="rateSlider" min="0.5" max="2.5" step="0.1" value="1">
+        <span class="speed-value" id="rateValue">1.0×</span>
+      </div>
+
+      <div class="voice-control">
+        <select id="voiceSelect" aria-label="Voice">
+          <optgroup label="Browser voices" id="browserOptGroup">
+            <option value="browser:">Default voice</option>
+          </optgroup>
+        </select>
+      </div>
+    </div>
+  </footer>
+
+  <div id="proBackdrop" class="modal-backdrop" hidden>
+    <div class="scan-modal pro-modal" role="dialog" aria-modal="true" aria-labelledby="proTitle">
+      <div class="scan-modal-header"><h2 id="proTitle">Fill &amp; sign</h2><button id="proCloseBtn" type="button" aria-label="Close">&times;</button></div>
+      <div class="scan-view">
+        <div id="signPanel">
+          <p class="scan-hint">Fill existing fields where available, add text or a checkmark, then add your own standard electronic signature.</p>
+          <label class="pro-label" for="formText">Text to place on the current page</label>
+          <input id="formText" class="pro-input" maxlength="280" placeholder="Name, date, or other form text">
+          <div class="pro-row"><button id="placeTextBtn" type="button" class="scan-secondary-btn">Place text</button><button id="placeCheckBtn" type="button" class="scan-secondary-btn">Place checkmark</button></div>
+          <label class="pro-label" for="typedSignature">Signature</label>
+          <input id="typedSignature" class="pro-input signature-input" maxlength="100" placeholder="Type your full legal name">
+          <canvas id="signatureCanvas" class="signature-canvas" width="600" height="180" aria-label="Draw your signature"></canvas>
+          <div class="pro-row"><button id="clearSignatureBtn" type="button" class="scan-secondary-btn">Clear drawing</button><span class="scan-hint">Draw or type your signature.</span></div>
+          <label class="consent"><input id="signatureConsent" type="checkbox"> I consent to use this electronic signature and understand it is not a qualified or notarized signature.</label>
+          <button id="completeSignatureBtn" type="button" class="scan-primary-btn">Create signed PDF</button>
+          <p id="signatureStatus" class="scan-hint" aria-live="polite"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="bibleBackdrop" class="modal-backdrop" hidden>
+    <div class="scan-modal" role="dialog" aria-modal="true" aria-labelledby="bibleTitle">
+      <div class="scan-modal-header"><h2 id="bibleTitle">Read the Bible</h2><button id="bibleCloseBtn" type="button" aria-label="Close">&times;</button></div>
+      <div class="scan-view">
+        <label class="pro-label" for="bibleLanguage">Language</label>
+        <select id="bibleLanguage" class="pro-select"><option value="en">English</option><option value="es">Español</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="pt">Português</option></select>
+        <div class="bible-pick">
+          <div><label class="pro-label" for="bibleBook">Book</label><select id="bibleBook" class="pro-select"></select></div>
+          <div><label class="pro-label" for="bibleChapter">Chapter</label><select id="bibleChapter" class="pro-select"></select></div>
+        </div>
+        <button id="bibleReadBtn" type="button" class="scan-primary-btn" disabled>Read</button>
+        <p id="bibleStatus" class="scan-hint" aria-live="polite"></p>
+        <p id="bibleCredit" class="scan-hint"></p>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" accept="application/pdf" hidden>
+  <input type="file" id="photoInput" accept="image/*" multiple hidden>
+</div>
+
+<div class="legal-links">Free and open source · Bible texts are public domain · <a href="tip.html">Support the project</a></div>
+
+<script src="js/lamplight-reader.js"></script>
+<script src="js/lamplight-sign.js"></script>
+</body>
+</html>

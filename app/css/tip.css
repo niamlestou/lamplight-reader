@@ -1,0 +1,16 @@
+.tip-page{ display:grid; place-items:center; min-height:100%; padding:24px; background:radial-gradient(ellipse at 50% 0%, #2a3340 0%, var(--bg) 60%); }
+.tip-card{ position:relative; max-width:520px; width:100%; padding:40px 36px 32px; background:var(--surface); border:1px solid var(--rule); border-radius:14px; box-shadow:0 18px 48px rgba(0,0,0,.35); }
+.tip-card .brand-mark{ display:block; margin-bottom:18px; }
+.tip-card h1{ margin:0 0 12px; font-family:'Source Serif 4',Georgia,serif; font-size:34px; font-weight:600; }
+.tip-lead{ margin:0 0 20px; color:var(--text-muted); font-size:15.5px; line-height:1.65; }
+.tip-points{ margin:0 0 28px; padding:0; list-style:none; display:grid; gap:10px; font-size:14.5px; line-height:1.55; }
+.tip-points li{ padding:12px 14px; background:var(--surface-raised); border:1px solid var(--rule); border-radius:10px; color:var(--text-muted); }
+.tip-points strong{ color:var(--text); }
+.tip-btn{ display:block; text-align:center; padding:14px 20px; border-radius:10px; background:var(--accent); color:var(--accent-ink); font-weight:600; font-size:16px; text-decoration:none; transition:filter .15s, transform .15s; }
+.tip-btn:hover{ filter:brightness(1.08); transform:translateY(-1px); }
+.tip-btn:focus-visible, .tip-back:focus-visible{ outline:2px solid var(--text); outline-offset:3px; }
+.tip-note{ margin:16px 0 0; font-size:12.5px; line-height:1.6; color:var(--text-muted); text-align:center; }
+.tip-back{ display:inline-block; margin-bottom:22px; font-size:13.5px; color:var(--text-muted); text-decoration:none; }
+.tip-back:hover{ color:var(--accent); }
+@media (max-width:480px){ .tip-card{ padding:28px 20px 24px; } .tip-card h1{ font-size:28px; } }
+@media (prefers-reduced-motion:reduce){ .tip-btn{ transition:none; } }

@@ -1,0 +1,48 @@
+{
+  "name": "lamplight-reader",
+  "version": "1.0.0",
+  "description": "Read PDFs and the Bible aloud. Free, private, and fully offline.",
+  "main": "main.js",
+  "author": "Niam LeStourgeon",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.lamplight.reader",
+    "productName": "Lamplight Reader",
+    "files": [
+      "main.js",
+      "app/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.education"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Education"
+    },
+    "directories": {
+      "output": "dist"
+    }
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
+  }
+}
