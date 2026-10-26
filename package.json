@@ -1,6 +1,6 @@
 {
   "name": "lamplight-reader",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Read PDFs and the Bible aloud. Free, private, and fully offline.",
   "main": "main.js",
   "author": "Niam LeStourgeon",
