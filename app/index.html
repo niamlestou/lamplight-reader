@@ -53,6 +53,16 @@
         <button class="scan-secondary-btn" id="dropzoneBibleBtn" type="button">Read the Bible</button>
       </div>
     </div>
+    <div id="loader" hidden role="status" aria-live="polite">
+      <div class="loader-card">
+        <div class="loader-ring" aria-hidden="true"></div>
+        <p class="loader-title">Preparing your document</p>
+        <p class="loader-file" id="loaderFile"></p>
+        <div class="loader-bar" aria-hidden="true"><span id="loaderFill"></span></div>
+        <p class="loader-meta" id="loaderMeta"></p>
+        <button class="scan-secondary-btn" id="loaderCancel" type="button">Cancel</button>
+      </div>
+    </div>
     <div id="status-message" hidden></div>
     <div id="pagesContainer" hidden></div>
   </main>

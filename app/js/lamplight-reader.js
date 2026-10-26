@@ -30,7 +30,7 @@
     activeSpan: null, isPlaying: false, isPaused: false, rate: 1,
     selectedVoice: null, browserVoices: [], activeEngine: 'browser', toc: [],
     pageObserver: null, viewport: { top: 0, bottom: 0, height: 0 },
-    browserSession: 0, utterance: null, featureLoads: new Map(), currentFile: null, pageCount: 0, pageLabel: 'Page', lang: '', content: ''
+    browserSession: 0, loadToken: 0, utterance: null, featureLoads: new Map(), currentFile: null, pageCount: 0, pageLabel: 'Page', lang: '', content: ''
   };
 
   function updateViewport() {
@@ -43,7 +43,27 @@
   new ResizeObserver(updateViewport).observe(elements.mainArea);
   updateViewport();
 
+  // ---------- Loading screen ----------
+  const loader = { root: $('loader'), file: $('loaderFile'), fill: $('loaderFill'), meta: $('loaderMeta'), cancel: $('loaderCancel') };
+  let loaderFrame = 0;
+  function showLoader(name) {
+    elements.status.hidden = true; loader.root.hidden = false;
+    loader.file.textContent = name; loader.root.classList.add('indeterminate');
+    loader.fill.style.transform = 'scaleX(0)'; loader.meta.textContent = 'Opening document…';
+  }
+  function setLoader(done, total) { // coalesced to one DOM write per frame
+    cancelAnimationFrame(loaderFrame);
+    loaderFrame = requestAnimationFrame(() => {
+      loader.root.classList.remove('indeterminate');
+      loader.fill.style.transform = `scaleX(${done / total})`;
+      loader.meta.textContent = `Page ${done} of ${total} · ${Math.round(done / total * 100)}%`;
+    });
+  }
+  function hideLoader() { cancelAnimationFrame(loaderFrame); loader.root.hidden = true; }
+  loader.cancel.addEventListener('click', () => { state.loadToken++; hideLoader(); elements.dropzone.hidden = false; });
+
   function showStatus(message, loading) {
+    hideLoader();
     elements.status.hidden = false;
     elements.status.textContent = message;
     elements.status.classList.toggle('pulse', Boolean(loading));
@@ -159,6 +179,7 @@
   const MAX_PAGES = 500, MAX_BYTES = 150 * 1024 * 1024;
   async function loadPdf(file, { method = 'picker' } = {}) {
     resetReader();
+    const token = ++state.loadToken, cancelled = () => token !== state.loadToken;
     if (file.size > MAX_BYTES) { showStatus('That PDF is larger than 150 MB. Please choose a smaller file.', false); return; }
     const pdfBytes = await file.arrayBuffer();
     // Names and MIME types are easy to fake; a real PDF starts with "%PDF-".
@@ -168,19 +189,27 @@
       return;
     }
     elements.dropzone.hidden = true;
-    showStatus(`Reading "${file.name}"…`, true);
+    showLoader(file.name);
     try {
       // Defense in depth: never compile font programs with eval (the CVE-2024-4367 attack path).
-      const pdf = await (await pdfjs()).getDocument({ data: pdfBytes.slice(0), isEvalSupported: false }).promise;
+      const pdf = await (await pdfjs()).getDocument({ data: pdfBytes, isEvalSupported: false }).promise;
       if (pdf.numPages > MAX_PAGES) {
         pdf.destroy(); elements.dropzone.hidden = false;
         showStatus(`Lamplight reads PDFs up to ${MAX_PAGES} pages. This one has ${pdf.numPages}.`, false); return;
       }
+      if (cancelled()) { pdf.destroy(); return; }
       const allWords = [], allLines = [], firstWordByPage = {}, models = [];
+      // Extract a few pages at a time so the pdf.js worker stays busy; results are consumed in page order.
+      const BATCH = 4, extract = async number => { const page = await pdf.getPage(number); const items = (await page.getTextContent()).items; page.cleanup(); return extractLines(items); };
+      let batch = null;
       for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-        showStatus(`Reading page ${pageNumber} of ${pdf.numPages}…`, true);
-        const page = await pdf.getPage(pageNumber);
-        const lines = extractLines((await page.getTextContent()).items);
+        if ((pageNumber - 1) % BATCH === 0) {
+          const first = pageNumber, count = Math.min(BATCH, pdf.numPages - first + 1);
+          batch = await Promise.all(Array.from({ length: count }, (_, i) => extract(first + i)));
+          if (cancelled()) { pdf.destroy(); return; }
+          setLoader(first + count - 1, pdf.numPages);
+        }
+        const lines = batch[(pageNumber - 1) % BATCH];
         const startIndex = allWords.length;
         const pageWords = [];
         for (const line of lines) {
@@ -205,11 +234,11 @@
         return;
       }
       state.words = allWords;
-      state.currentFile = new File([pdfBytes], file.name, { type: 'application/pdf' });
+      state.currentFile = file;
       state.pageCount = pdf.numPages; state.content = method === 'scan' ? 'scan' : 'pdf';
       state.currentIndex = 0;
       createVirtualPages(models);
-      elements.status.hidden = true;
+      hideLoader(); elements.status.hidden = true;
       elements.pages.hidden = false;
       elements.controls.hidden = false;
       elements.fileLabel.textContent = `${file.name} · ${pdf.numPages} page${pdf.numPages === 1 ? '' : 's'}`;
