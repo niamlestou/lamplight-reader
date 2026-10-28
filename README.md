@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🕯️ Lamplight Reader
+# 🕯️ Lamp Light Reader
 
 **Read PDFs and the Bible aloud. Free, private, and entirely offline.**
 
@@ -17,14 +17,14 @@ A desktop app that turns any PDF, scanned page, or Scripture chapter into a calm
 
 ---
 
-## Why Lamplight?
+## Why Lamp Light?
 
-Reading long documents on a screen is tiring, and not everyone can or wants to read that way. Lamplight reads to you in your operating system's own voices and keeps your place with a highlighted word, so you can listen, follow along, or jump to any spot with a click.
+Reading long documents on a screen is tiring, and not everyone can or wants to read that way. Lamp Light reads to you in your operating system's own voices and keeps your place with a highlighted word, so you can listen, follow along, or jump to any spot with a click.
 
 It was built around three rules:
 
 - **Private.** Your documents never leave your computer. There are no accounts, no uploads, no analytics, and no telemetry.
-- **Offline.** Everything, including the full Bible in five languages, ships inside the app. After installing, you never need an internet connection.
+- **Offline.** Everything, including the full Bible in five languages, ships inside the app. After installing, you never need an internet connection. (The optional Kokoro voices are a one-time ~90 MB download that you opt into; after that they work offline too.)
 - **Free.** There is no subscription and no paywall. An optional [tip jar](#-tip-jar) is the only way to support the project.
 
 ## ✨ Features
@@ -38,7 +38,7 @@ It was built around three rules:
 | 🎚️ **Playback controls** | Adjustable speed (0.5×–2.5×), voice selection, pause and resume, page skipping, and a table of contents for PDFs that have one. |
 | 🌙 **Easy on the eyes** | A calm dark theme with a warm accent and a serif reading face, designed for long sessions. |
 
-> **Voices:** Lamplight uses the text-to-speech voices already installed on your system. Most computers include several, and you can add more in your OS settings for additional languages.
+> **Voices:** Lamp Light uses the text-to-speech voices already installed on your system. Most computers include several, and you can add more in your OS settings for additional languages. On first launch it also offers the free, open-source **Kokoro** voices, which sound more natural. They are an optional one-time download (about 90 MB from huggingface.co); decline and the app works exactly as before.
 
 ## 📦 Download
 
@@ -46,9 +46,9 @@ Installers for Windows, macOS and Linux are published on the [**Releases**](../.
 
 | Platform | File | How to install |
 |---|---|---|
-| Windows | `Lamplight Reader Setup.exe` or the portable `.exe` | Double-click. The portable build needs no installation. |
-| macOS | `Lamplight Reader.dmg` | Open the disk image and drag the app into Applications. |
-| Linux | `Lamplight Reader.AppImage` | Make it executable (`chmod +x`) and run it. |
+| Windows | `Lamp Light Reader Setup.exe` or the portable `.exe` | Double-click. The portable build needs no installation. |
+| macOS | `Lamp Light Reader.dmg` | Open the disk image and drag the app into Applications. |
+| Linux | `Lamp Light Reader.AppImage` | Make it executable (`chmod +x`) and run it. |
 
 > **First launch warnings.** The installers are not code-signed, so Windows SmartScreen or macOS Gatekeeper may warn you. On Windows choose *More info → Run anyway*. On macOS right-click the app and choose *Open*. If you would rather not trust a binary, [run it from source](#-run-from-source) instead.
 
@@ -82,17 +82,17 @@ Installers are written to the `dist/` folder for the platform you are building o
 
 ## 💛 Tip jar
 
-Lamplight is free and always will be. If it helped you, you can leave a **one-time** tip from the **Tip jar** button in the app.
+Lamp Light is free and always will be. If it helped you, you can leave a **one-time** tip from the **Tip jar** button in the app.
 
 - One-time payment only: no subscription, no recurring charge, no account.
 - You choose the amount, from $1 to $500.
 - Checkout is hosted by [Stripe](https://stripe.com) in your web browser. Card details never pass through this app, and the repository contains no API keys or secrets. The tip button is a public Stripe Payment Link.
-- It is the only feature that uses the internet, and nothing else in the app does.
+- Apart from the optional Kokoro voice download (below), it is the only feature that uses the internet.
 
 ## 🔒 Privacy
 
 - Documents are processed locally and never uploaded.
-- The app serves itself from a loopback-only server (`127.0.0.1`) and **blocks every other network request** at the window level, so even a bug could not send your data elsewhere.
+- The app serves itself from a loopback-only server (`127.0.0.1`) and **blocks every other network request** at the window level (the only exceptions are the tip jar link and, if you opt in, the one-time Kokoro voice download from `huggingface.co`), so even a bug could not send your data elsewhere.
 - Camera access is requested only when you open the scanner, and no other permission is ever granted.
 - There is no analytics, tracking, or crash reporting.
 
@@ -137,7 +137,7 @@ Bug reports and pull requests are welcome. The reader is plain HTML and JavaScri
 
 ## 🙏 Acknowledgements
 
-Lamplight stands on the shoulders of [pdf.js](https://github.com/mozilla/pdf.js), [pdf-lib](https://github.com/Hopding/pdf-lib), [Tesseract.js](https://github.com/naptha/tesseract.js), [Electron](https://www.electronjs.org), [IBM Plex Sans](https://github.com/IBM/plex), and [Source Serif 4](https://github.com/adobe-fonts/source-serif). Licenses for everything bundled are listed in [`app/vendor/LICENSES.md`](app/vendor/LICENSES.md).
+Lamp Light stands on the shoulders of [pdf.js](https://github.com/mozilla/pdf.js), [pdf-lib](https://github.com/Hopding/pdf-lib), [Tesseract.js](https://github.com/naptha/tesseract.js), [Electron](https://www.electronjs.org), [IBM Plex Sans](https://github.com/IBM/plex), and [Source Serif 4](https://github.com/adobe-fonts/source-serif). Licenses for everything bundled are listed in [`app/vendor/LICENSES.md`](app/vendor/LICENSES.md).
 
 ## 📄 License
 

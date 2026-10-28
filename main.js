@@ -1,5 +1,5 @@
-// Lamplight Reader desktop shell: serves ./app from a loopback-only HTTP server and
-// shows it in a window. Nothing is uploaded; the only outbound link is the tip jar.
+// Lamp Light Reader desktop shell: serves ./app from a loopback-only HTTP server and
+// shows it in a window. Nothing is uploaded. Outbound: the tip jar link, and (only if the user opts in) one-time downloads of the Kokoro voice model from huggingface.co.
 const { app, BrowserWindow, session, shell } = require('electron');
 const http = require('http');
 const fs = require('fs');
@@ -30,11 +30,11 @@ function listen() {
 async function createWindow() {
   const port = await listen(), origin = `http://127.0.0.1:${port}`;
   // Block every request that is not to the local server (or inline data/blob URLs).
-  session.defaultSession.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !/^(http:\/\/127\.0\.0\.1|data:|blob:|devtools:)/.test(details.url) }));
+  session.defaultSession.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !/^(http:\/\/127\.0\.0\.1|data:|blob:|devtools:|https:\/\/([a-z0-9-]+\.)*(huggingface\.co|hf\.co)\/)/.test(details.url) }));
   // Only the document scanner needs a permission: the camera.
   session.defaultSession.setPermissionRequestHandler((_, permission, callback) => callback(permission === 'media'));
 
-  const win = new BrowserWindow({ width: 1180, height: 820, minWidth: 420, minHeight: 560, backgroundColor: '#1B2027', title: 'Lamplight Reader', autoHideMenuBar: true });
+  const win = new BrowserWindow({ width: 1180, height: 820, minWidth: 420, minHeight: 560, backgroundColor: '#1B2027', title: 'Lamp Light Reader', autoHideMenuBar: true });
   win.webContents.setWindowOpenHandler(({ url }) => { if (url.startsWith(TIP_URL)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (event, url) => { if (!url.startsWith(origin)) { event.preventDefault(); if (url.startsWith(TIP_URL)) shell.openExternal(url); } });
   win.loadURL(origin);

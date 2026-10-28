@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' blob: data:; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' blob: data: https://huggingface.co https://*.huggingface.co https://*.hf.co; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="theme-color" content="#222933">
-<title>Lamplight Reader — Read PDFs and the Bible aloud, offline</title>
+<title>Lamp Light Reader — Read PDFs and the Bible aloud, offline</title>
 <meta name="description" content="Read PDFs and the Bible aloud. Free, private, and fully offline.">
 <link rel="stylesheet" href="css/lamplightcss.css">
 <link rel="stylesheet" href="css/fonts.css">
@@ -15,7 +15,7 @@
   <header>
     <div class="brand">
       <span class="brand-mark" aria-hidden="true"></span>
-      <span class="brand-name">Lamplight</span>
+      <span class="brand-name">Lamp Light</span>
       <span class="brand-file" id="fileLabel"></span>
     </div>
     <div class="header-actions">
@@ -133,6 +133,21 @@
     <button id="scanResultDismiss" type="button" class="scan-secondary-btn">Dismiss</button>
   </div>
 
+  <div id="kokoroBackdrop" class="modal-backdrop" hidden>
+    <div class="scan-modal" role="dialog" aria-modal="true" aria-labelledby="kokoroTitle">
+      <div class="scan-modal-header"><h2 id="kokoroTitle">Install natural-sounding voices?</h2></div>
+      <div class="scan-view">
+        <p class="scan-hint">Lamp Light can download the free, open-source Kokoro voices. They sound noticeably better and more natural than your computer's built-in voice, and once installed they work offline.</p>
+        <p class="scan-hint">One-time download of about 90 MB from huggingface.co; this is the only time Lamp Light connects to the internet for voices. Your documents never leave your device. You can skip this and install later from the voice menu.</p>
+        <p id="kokoroPromptStatus" class="scan-hint" role="status" hidden></p>
+        <div class="scan-view-actions">
+          <button id="kokoroSkipBtn" type="button" class="pro-select" style="width:auto;cursor:pointer">Not now</button>
+          <button id="kokoroInstallBtn" type="button" class="scan-primary-btn">Download &amp; install</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <footer id="controlBar" hidden>
     <div class="engine-status" id="engineStatus" hidden></div>
     <div class="progress-text" id="progressText"></div>
@@ -159,6 +174,9 @@
         <select id="voiceSelect" aria-label="Voice">
           <optgroup label="Browser voices" id="browserOptGroup">
             <option value="browser:">Default voice</option>
+          </optgroup>
+          <optgroup label="Kokoro — open source, offline" id="kokoroOptGroup">
+            <option value="kokoro:__load__">Kokoro (click to download, ~90 MB)</option>
           </optgroup>
         </select>
       </div>
@@ -209,6 +227,7 @@
 
 <div class="legal-links">Free and open source · Bible texts are public domain · <a href="tip.html">Support the project</a></div>
 
+<audio id="kokoroAudio" hidden></audio>
 <script src="js/lamplight-reader.js"></script>
 <script src="js/lamplight-sign.js"></script>
 </body>

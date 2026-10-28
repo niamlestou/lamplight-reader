@@ -1,4 +1,4 @@
-/* Lamplight's always-on reader code. Scanner and sign-in code load on demand. */
+/* Lamp Light's always-on reader code. Scanner and sign-in code load on demand. */
 (() => {
   'use strict';
 
@@ -22,7 +22,7 @@
     pause: $('pauseBtn'), stop: $('stopBtn'), rate: $('rateSlider'), rateValue: $('rateValue'),
     voice: $('voiceSelect'), tocButton: $('tocBtn'), tocBackdrop: $('tocBackdrop'),
     tocList: $('tocList'), scan: $('scanBtn'),
-    dropzoneScan: $('dropzoneScanBtn')
+    dropzoneScan: $('dropzoneScanBtn'), kokoroAudio: $('kokoroAudio')
   };
   const speechSupported = 'speechSynthesis' in window;
   const state = {
@@ -30,7 +30,9 @@
     activeSpan: null, isPlaying: false, isPaused: false, rate: 1,
     selectedVoice: null, browserVoices: [], activeEngine: 'browser', toc: [],
     pageObserver: null, viewport: { top: 0, bottom: 0, height: 0 },
-    browserSession: 0, loadToken: 0, utterance: null, featureLoads: new Map(), currentFile: null, pageCount: 0, pageLabel: 'Page', lang: '', content: ''
+    browserSession: 0, loadToken: 0, utterance: null, kokoroTTS: null, kokoroLoading: null,
+    kokoroVoiceId: null, kokoroChunkStart: 0, kokoroChunkWords: 0,
+    kokoroQueue: new Map(), kokoroChain: Promise.resolve(), kokoroStopped: false, featureLoads: new Map(), currentFile: null, pageCount: 0, pageLabel: 'Page', lang: '', content: ''
   };
 
   function updateViewport() {
@@ -72,6 +74,7 @@
     const el = $('engineStatus');
     el.textContent = message;
     el.hidden = false;
+    const prompt = $('kokoroPromptStatus'); prompt.textContent = message; prompt.hidden = $('kokoroBackdrop').hidden;
     el.classList.toggle('pulse', Boolean(pulsing));
   }
   function hideEngineStatus() {
@@ -195,7 +198,7 @@
       const pdf = await (await pdfjs()).getDocument({ data: pdfBytes, isEvalSupported: false }).promise;
       if (pdf.numPages > MAX_PAGES) {
         pdf.destroy(); elements.dropzone.hidden = false;
-        showStatus(`Lamplight reads PDFs up to ${MAX_PAGES} pages. This one has ${pdf.numPages}.`, false); return;
+        showStatus(`Lamp Light reads PDFs up to ${MAX_PAGES} pages. This one has ${pdf.numPages}.`, false); return;
       }
       if (cancelled()) { pdf.destroy(); return; }
       const allWords = [], allLines = [], firstWordByPage = {}, models = [];
@@ -285,9 +288,13 @@
   }
   function resetReader() {
     cancelSpeech();
+    state.kokoroStopped = true;
+    elements.kokoroAudio.pause();
+    if (elements.kokoroAudio.src.startsWith('blob:')) URL.revokeObjectURL(elements.kokoroAudio.src);
+    elements.kokoroAudio.removeAttribute('src');
     if (state.pageObserver) state.pageObserver.disconnect();
     Object.assign(state, { words: [], wordSpans: [], pageModels: [], pageModelByNumber: new Map(), currentIndex: 0, activeSpan: null,
-      isPlaying: false, isPaused: false, toc: [], currentFile: null, pageCount: 0, pageLabel: 'Page', lang: '', content: '' });
+      isPlaying: false, isPaused: false, toc: [], kokoroChunkWords: 0, kokoroQueue: new Map(), currentFile: null, pageCount: 0, pageLabel: 'Page', lang: '', content: '' });
     elements.pages.replaceChildren();
     elements.pages.hidden = true; elements.controls.hidden = true; elements.status.hidden = true;
     elements.fileLabel.textContent = ''; elements.dropzone.hidden = false;
@@ -426,7 +433,7 @@
     if (!('mediaSession' in navigator)) return;
     navigator.mediaSession.playbackState = state.isPlaying && !state.isPaused ? 'playing' : state.isPaused ? 'paused' : 'none';
     if ((state.isPlaying || state.isPaused) && !navigator.mediaSession.metadata && typeof MediaMetadata === 'function') {
-      navigator.mediaSession.metadata = new MediaMetadata({ title: elements.fileLabel.textContent || 'Lamplight', artist: 'Lamplight' });
+      navigator.mediaSession.metadata = new MediaMetadata({ title: elements.fileLabel.textContent || 'Lamp Light', artist: 'Lamp Light' });
     }
   }
   function skipPage(direction) {
@@ -436,7 +443,9 @@
   }
   function startFrom(index) {
     state.currentIndex = index;
-    speakFrom(index);
+    if (state.activeEngine === 'kokoro') {
+      state.kokoroStopped = true; elements.kokoroAudio.pause(); playKokoroFrom(index);
+    } else speakFrom(index);
   }
 
   // ---------- Browser speech (bounded utterances) ----------
@@ -495,6 +504,82 @@
     speechSynthesis.speak(utterance);
   }
 
+  // ---------- Kokoro voice (loaded on demand) ----------
+  async function ensureKokoroLoaded() {
+    if (state.kokoroTTS) return state.kokoroTTS;
+    if (state.kokoroLoading) return state.kokoroLoading;
+    elements.voice.disabled = true;
+    showEngineStatus('Downloading the Kokoro voice model (about 90 MB, one time only)…', true);
+    state.kokoroLoading = (async () => {
+      const { KokoroTTS, env } = await import(vendorUrl('kokoro/kokoro.web.js'));
+      env.wasmPaths = vendorUrl('kokoro/'); // bundled ONNX runtime instead of the jsDelivr default
+      const tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
+        dtype: 'q8', device: 'wasm', progress_callback: progress => {
+          if (progress && progress.status === 'progress') showEngineStatus(`Downloading the Kokoro voice model… ${Math.round(progress.progress)}%`, true);
+        }
+      });
+      state.kokoroTTS = tts; populateKokoroVoices(tts); hideEngineStatus(); elements.voice.disabled = false;
+      return tts;
+    })().catch(error => {
+      console.error(error); state.kokoroLoading = null; elements.voice.disabled = false;
+      state.activeEngine = 'browser'; elements.voice.value = 'browser:';
+      showEngineStatus("Couldn't load the Kokoro voice model. Switched back to your browser's built-in voice.", false);
+      setTimeout(hideEngineStatus, 8000); throw error;
+    });
+    return state.kokoroLoading;
+  }
+  function populateKokoroVoices(tts) {
+    let voices = [];
+    try {
+      const list = tts.list_voices();
+      voices = Array.isArray(list) ? list.map(value => typeof value === 'string' ? { id: value, label: value } : { id: value.id || value.name, label: value.name || value.id }) :
+        Object.keys(list || {}).map(id => ({ id, label: (list[id] && (list[id].name || list[id].label)) || id }));
+    } catch (_) { /* use known voice identifiers below */ }
+    if (!voices.length) voices = ['af_heart', 'af_bella', 'af_sky', 'af_sarah', 'am_adam', 'am_michael'].map(id => ({ id, label: id }));
+    const group = $('kokoroOptGroup'); group.replaceChildren();
+    voices.forEach((voice, index) => {
+      const option = document.createElement('option'); option.value = `kokoro:${voice.id}`; option.textContent = voice.label;
+      option.selected = index === 0; group.appendChild(option);
+    });
+    state.kokoroVoiceId = voices[0].id;
+  }
+  async function synthesizeChunk(startIndex) {
+    const chunk = buildWordChunk(startIndex);
+    if (!chunk.count) return null;
+    const output = await state.kokoroTTS.generate(chunk.text, { voice: state.kokoroVoiceId });
+    return { count: chunk.count, blob: output.toBlob ? output.toBlob() : new Blob([output.toWav()], { type: 'audio/wav' }) };
+  }
+  // Keeps the next chunks synthesized ahead so audio continues without gaps, including while the
+  // phone is locked and the page gets little CPU time. Kokoro runs one synthesis at a time.
+  const AUDIO_BUFFER_CHUNKS = 3;
+  function synthesizeAhead(index) {
+    for (let queued = 0, next = index; queued < AUDIO_BUFFER_CHUNKS && next < state.words.length; queued++) {
+      if (!state.kokoroQueue.has(next)) {
+        const at = next, job = state.kokoroChain.then(() => synthesizeChunk(at));
+        state.kokoroChain = job.catch(() => {}); state.kokoroQueue.set(at, job);
+      }
+      next += buildWordChunk(next).count;
+    }
+  }
+  async function playKokoroFrom(index) {
+    try { await ensureKokoroLoaded(); } catch (_) { return; }
+    state.kokoroStopped = false; state.kokoroQueue.clear(); state.currentIndex = index;
+    playKokoroChunk(index);
+  }
+  async function playKokoroChunk(index) {
+    if (index >= state.words.length) { state.isPlaying = false; updateButtons(); return; }
+    synthesizeAhead(index);
+    const result = await state.kokoroQueue.get(index);
+    state.kokoroQueue.delete(index);
+    if (state.kokoroStopped || !result || !result.blob) return;
+    state.kokoroChunkStart = index; state.kokoroChunkWords = result.count;
+    if (elements.kokoroAudio.src.startsWith('blob:')) URL.revokeObjectURL(elements.kokoroAudio.src);
+    elements.kokoroAudio.src = URL.createObjectURL(result.blob); elements.kokoroAudio.playbackRate = state.rate;
+    state.isPlaying = true; state.isPaused = false; highlightWord(index); updateButtons();
+    synthesizeAhead(index + result.count);
+    try { await elements.kokoroAudio.play(); } catch (error) { console.error(error); }
+  }
+
   // ---------- Controls ----------
   function populateVoices() {
     if (!speechSupported) return;
@@ -510,17 +595,21 @@
   }
   function play() {
     if (!state.words.length) return;
-    if (state.isPaused) {
+    if (state.activeEngine === 'kokoro') {
+      if (state.isPaused) { elements.kokoroAudio.play(); state.isPaused = false; state.isPlaying = true; updateButtons(); }
+      else if (!state.isPlaying) playKokoroFrom(state.currentIndex || 0);
+    } else if (state.isPaused) {
       speechSynthesis.resume(); state.isPaused = false; state.isPlaying = true; updateButtons();
     } else if (!state.isPlaying) speakFrom(state.currentIndex || 0);
   }
   function pause() {
     if (!state.isPlaying || state.isPaused) return;
-    speechSynthesis.pause();
+    if (state.activeEngine === 'kokoro') elements.kokoroAudio.pause(); else speechSynthesis.pause();
     state.isPaused = true; updateButtons();
   }
   function stop() {
-    cancelSpeech();
+    if (state.activeEngine === 'kokoro') { state.kokoroStopped = true; elements.kokoroAudio.pause(); elements.kokoroAudio.currentTime = 0; }
+    else cancelSpeech();
     state.isPlaying = false; state.isPaused = false; state.currentIndex = 0; clearHighlight(); updateProgress(); updateButtons();
     elements.mainArea.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -572,14 +661,24 @@
   elements.rate.addEventListener('input', () => { elements.rateValue.textContent = `${Number(elements.rate.value).toFixed(1)}×`; });
   elements.rate.addEventListener('change', () => {
     state.rate = Number(elements.rate.value);
-    if (state.isPlaying && !state.isPaused) speakFrom(state.currentIndex);
+    if (state.activeEngine === 'kokoro') elements.kokoroAudio.playbackRate = state.rate;
+    else if (state.isPlaying && !state.isPaused) speakFrom(state.currentIndex);
     else if (state.isPaused) { cancelSpeech(); state.isPaused = false; state.isPlaying = false; updateButtons(); }
   });
   elements.voice.addEventListener('change', async () => {
     const wasPlaying = state.isPlaying && !state.isPaused, resumeAt = state.currentIndex, value = elements.voice.value;
-    state.activeEngine = 'browser'; state.selectedVoice = value === 'browser:' ? null : state.browserVoices[Number(value.slice(8))];
-    cancelSpeech(); state.isPlaying = false; state.isPaused = false;
+    if (value.startsWith('kokoro:')) {
+      const id = value.slice(7);
+      if (id === '__load__') { try { await ensureKokoroLoaded(); elements.voice.dispatchEvent(new Event('change')); } catch (_) {} return; }
+      state.kokoroVoiceId = id; state.activeEngine = 'kokoro'; if (!state.kokoroTTS) try { await ensureKokoroLoaded(); } catch (_) { return; }
+    } else { state.activeEngine = 'browser'; state.selectedVoice = value === 'browser:' ? null : state.browserVoices[Number(value.slice(8))]; }
+    cancelSpeech(); state.kokoroStopped = true; elements.kokoroAudio.pause(); state.isPlaying = false; state.isPaused = false;
     if (wasPlaying) startFrom(resumeAt); else updateButtons();
+  });
+  elements.kokoroAudio.addEventListener('ended', () => { if (state.activeEngine === 'kokoro' && !state.kokoroStopped) playKokoroChunk(state.kokoroChunkStart + state.kokoroChunkWords); });
+  elements.kokoroAudio.addEventListener('timeupdate', () => {
+    const audio = elements.kokoroAudio;
+    if (state.activeEngine === 'kokoro' && state.kokoroChunkWords && audio.duration) highlightWord(state.kokoroChunkStart + Math.floor(Math.min(audio.currentTime / audio.duration, .999) * state.kokoroChunkWords));
   });
   elements.scan.addEventListener('click', openScanner); if (elements.dropzoneScan) elements.dropzoneScan.addEventListener('click', openScanner);
   $('bibleBtn').addEventListener('click', openBible); $('dropzoneBibleBtn').addEventListener('click', openBible);
@@ -595,6 +694,24 @@
   });
   if (speechSupported) { speechSynthesis.onvoiceschanged = populateVoices; populateVoices(); }
   else { showStatus("This browser doesn't support text-to-speech. Try a recent version of Chrome, Edge, or Safari.", false); elements.dropzone.hidden = true; }
+
+  // Desktop app only: first-run offer to download Kokoro. The answer is remembered, so it only asks once.
+  (function kokoroPrompt() {
+    const backdrop = $('kokoroBackdrop'), install = $('kokoroInstallBtn'), skip = $('kokoroSkipBtn');
+    const get = () => { try { return localStorage.getItem('kokoroPrompt'); } catch (_) { return null; } };
+    const set = value => { try { localStorage.setItem('kokoroPrompt', value); } catch (_) {} };
+    if (get() || !speechSupported) return;
+    backdrop.hidden = false;
+    skip.addEventListener('click', () => { set('declined'); backdrop.hidden = true; });
+    install.addEventListener('click', async () => {
+      install.disabled = skip.disabled = true; install.textContent = 'Downloading…';
+      try {
+        await ensureKokoroLoaded();
+        set('installed'); backdrop.hidden = true;
+        elements.voice.value = `kokoro:${state.kokoroVoiceId}`; elements.voice.dispatchEvent(new Event('change'));
+      } catch (_) { install.disabled = skip.disabled = false; install.textContent = 'Try again'; } // status text already shows the error
+    });
+  })();
 
   window.Lamplight = { loadPdf, loadTextModel, loadTranslatedModel, goToPage, getCurrentFile: () => state.currentFile, getPageCount: () => state.pageCount };
 })();
